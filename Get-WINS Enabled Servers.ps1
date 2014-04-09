@@ -21,15 +21,16 @@ foreach ($objResult in $colResults) {
     }
 $computercount = $computers.Count
 
-write-host "$computercount computers found"
+Write-Host "$computercount computers found"
 
 foreach ($machine in $computers) {
     Write-Host "$machine - Looking up hostname"
     # Is machine in DNS?
+    $lookup = $NULL
     $ErrorActionPreference = "silentlycontinue"
-    $lookup = [System.Net.Dns]::GetHostAddresses($machine)
+    $lookup = [System.Net.Dns]::GetHostAddresses("$machine")
     $ErrorActionPreference = "continue"
-    if($lookup -eq $null) {
+    if($lookup -eq $NULL) {
         "$machine,not found in DNS" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
         $computercount = $computercount - 1
         Write-Host "$machine - Hostname not found" -ForegroundColor Red
@@ -49,9 +50,7 @@ foreach ($machine in $computers) {
         continue
         } # End ICMP IF
     # Determine if server has WINS setup
-    $ErrorActionPreference = "silentlycontinue"
-    $ip_info = gwmi -Class "Win32_NetworkAdapterConfiguration" -ComputerName "$machine" -Filter IPEnabled=True
-    $ErrorActionPreference = "continue"
+    $ip_info = Get-WmiObject -Class "Win32_NetworkAdapterConfiguration" -ComputerName "$machine" -Filter IPEnabled=True -ea silentlycontinue
     if($? -eq $false) {
         "$machine,WMI encountered an error" | Out-File -File "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
         $computercount = $computercount - 1
@@ -63,8 +62,12 @@ foreach ($machine in $computers) {
         } # End WMI IF
     $wins_primary = $ip_info.WINSPrimaryServer
     $wins_secondary = $ip_info.WINSSecondaryServer
-    if($wins_primary -ne $null -or $wins_secondary -ne $null) {"$machine,$wins_primary,$wins_secondary" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append }
+    if($wins_primary -eq $NULL -and $wins_secondary -eq $NULL) {
+        "$machine,WINS not enabled" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
+        } ELSE {
+        "$machine,$wins_primary,$wins_secondary" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
+        }
     $computercount = $computercount - 1
     Write-Host "$computercount computers left to check"
-    } # End ForEach $machine
+} # End ForEach $machine
 Stop-Transcript
