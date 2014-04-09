@@ -24,7 +24,7 @@ $computercount = $computers.Count
 write-host "$computercount computers found"
 
 foreach ($machine in $computers) {
-    Write-Output "$machine - Looking up hostname"
+    Write-Host "$machine - Looking up hostname"
     # Is machine in DNS?
     $ErrorActionPreference = "silentlycontinue"
     $lookup = [System.Net.Dns]::GetHostAddresses($machine)
