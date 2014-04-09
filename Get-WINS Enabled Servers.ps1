@@ -1,28 +1,70 @@
-Start-Transcript "WINS_Enabled_Servers.log"
+Start-Transcript "WINS Enabled Servers in $ENV:USERDOMAIN.log"
 
-$ErrorActionPreference = "SilentlyContinue"
+# Clear variables
+$computers = $null
 
-# Add QAD Snapin
-Add-PSSnapin Quest.ActiveRoles.ADManagement
+# Setup CSV
+"sep=," | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv"
+"Hostname" | Out-File -File "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
 
-# Collect machine names
-$servers = Get-QADComputer -SizeLimit 0 | select name,osname
-$servers = $servers | where {$_.osname -like "*server*" -or $_.osname -like "Windows NT*"}
-$servers = $servers | select name
+# Get list of servers in AD
+$objDomain = New-Object System.DirectoryServices.DirectoryEntry
+$objSearcher = New-Object System.DirectoryServices.DirectorySearcher
+$objSearcher.PageSize = 100000
+$objSearcher.SearchRoot = $objDomain
+$objSearcher.Filter = ("(OperatingSystem=Windows*Server*)")
+$objSearcher.PropertiesToLoad.Add("name") | out-null
+$colResults = $objSearcher.FindAll()
+foreach ($objResult in $colResults) {
+    $objComputer = $objResult.Properties
+    $computers += $objComputer.name
+    }
+$computercount = $computers.Count
 
-# Connect to servers and do work
-foreach ($server in $servers) {
-    $server_name = $server.name
-    write-host "Checking $server_name"
+write-host "$computercount computers found"
+
+foreach ($machine in $computers) {
+    Write-Output "$machine - Looking up hostname"
+    # Is machine in DNS?
+    $ErrorActionPreference = "silentlycontinue"
+    $lookup = [System.Net.Dns]::GetHostAddresses($machine)
+    $ErrorActionPreference = "continue"
+    if($lookup -eq $null) {
+        "$machine,not found in DNS" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
+        $computercount = $computercount - 1
+        Write-Host "$machine - Hostname not found" -ForegroundColor Red
+        Write-Host "$computercount computers left to check"
+        continue
+        } ELSE {
+        Write-Host "$machine - DNS lookup successful" -ForegroundColor Green
+        } # End DNS IF
+    # Is machine reachable?
+    if(Test-Connection -ComputerName $machine -Count 1 -Quiet) {
+        Write-Host "$machine - is reachable" -ForegroundColor Green
+        } ELSE {
+        "$machine,not reachable" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
+        $computercount = $computercount - 1
+        Write-Host "$machine - did not respond" -ForegroundColor Red
+        Write-Host "$computercount computers left to check"
+        continue
+        } # End ICMP IF
     # Determine if server has WINS setup
-    $ip_info = gwmi -Class "Win32_NetworkAdapterConfiguration" -ComputerName "$server_name" -Filter IPEnabled=True
-    if($? -ne $true) { write-host "Unable to connect to $server_name" }
+    $ErrorActionPreference = "silentlycontinue"
+    $ip_info = gwmi -Class "Win32_NetworkAdapterConfiguration" -ComputerName "$machine" -Filter IPEnabled=True
+    $ErrorActionPreference = "continue"
+    if($? -eq $false) {
+        "$machine,WMI encountered an error" | Out-File -File "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append
+        $computercount = $computercount - 1
+        Write-Host "$machine - encountered an error in WMI" -ForegroundColor Red
+        Write-Host "$computercount computers left to check"
+        continue
+        } ELSE {
+        Write-Host "$machine - queried successfully" -ForegroundColor Green
+        } # End WMI IF
     $wins_primary = $ip_info.WINSPrimaryServer
     $wins_secondary = $ip_info.WINSSecondaryServer
-    if($wins_primary -ne $null -or $wins_secondary -ne $null) {
-        write-host "$server_name,$wins_primary,$wins_secondary"
-        }
-    write-host "Finished checking $server_name"
-    }
-
+    if($wins_primary -ne $null -or $wins_secondary -ne $null) {"$machine,$wins_primary,$wins_secondary" | Out-File -file "WINS Enabled Servers in $ENV:USERDOMAIN.csv" -Append }
+    $computercount = $computercount - 1
+    Write-Host "$computercount computers left to check"
+    } # End ForEach $machine
 Stop-Transcript
