@@ -3,7 +3,8 @@ Start-Transcript -Path "$ENV:TEMP\AccountLockouts.log"
 #$ErrorActionPreference = "SilentlyContinue"
 
 # List of DCs
-$DCs = "ads1-co","ads2-co","ads9-co"
+$Forest = [system.directoryservices.activedirectory.Forest]::GetCurrentForest()
+$DCs = $forest.Domains | ForEach-Object {$_.DomainControllers} | ForEach-Object {$_.Name}
 
 # Connect to each DC and search for eventID 4740
 ForEach ($DC in $DCs) {
