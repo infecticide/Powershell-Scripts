@@ -24,4 +24,4 @@ ForEach ($DC in $DCs) {
 Stop-Transcript
 
 # Email logs to Keenan
-Send-MailMessage -From "Steven.Brown@gov.sk.ca" -To "Keenan.Antonini@gov.sk.ca" -Subject "Account Lockout Report" -Body "Here is the lockout report, it will run every 30 minutes." -SmtpServer "mail.gos.ca" -Attachments "$ENV:USERPROFILE\Desktop\Account Lockouts on $ENV:USERDOMAIN.log"
+Send-MailMessage -From "user1@abc.com" -To "user2@abc.com" -Subject "Account Lockout Report" -Body "Here is the lockout report, it will run every 30 minutes." -SmtpServer "mail.gos.ca" -Attachments "$ENV:USERPROFILE\Desktop\Account Lockouts on $ENV:USERDOMAIN.log"
